@@ -1,17 +1,29 @@
-# Weather
+# wx
 
 Minimal terminal weather client powered by Open‑Meteo. Color ASCII icons, zero configuration.
 
 # Usage
 
 ```
-. "<city>"
+wx "<city>"
 ```
 
 Examples:
 ```
-. Moscow
-. "San Francisco"
+wx Moscow
+wx "San Francisco"
+```
+
+If no city is provided, the app will fall back to the `WEATHER_CITY` environment variable.
+
+# Options
+
+- `-imperial` : Display weather in Fahrenheit and mph instead of Celsius and km/h.
+
+Examples:
+```
+wx Moscow -imperial
+wx -imperial "San Francisco"
 ```
 
 # Example output
@@ -30,7 +42,7 @@ Examples:
    7° (feels like 4°)
    Partly cloudy
 
-   Humidity 61%   Wind 6 km/h NE   Hi / Lo 10° / 4°
+   Humidity 61%   Wind 6 km/h NE   Rain 0%   Hi / Lo 10° / 4°   UV 2
 
    Sunrise 06:28   Sunset 18:10
 
@@ -38,4 +50,4 @@ Examples:
 
 # Notes
 
-Data source: Open‑Meteo geocoding and forecast. No API keys. Internet connection required. Timezone is selected automatically.
+Data source: Open‑Meteo geocoding and forecast. No API keys. Internet connection required. Timezone is selected automatically. Colors are automatically disabled when piping output to a file or another process.

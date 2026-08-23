@@ -1,6 +1,6 @@
-package main
+package wx
 
-const (
+var (
 	reset      = "\033[0m"
 	bold       = "\033[1m"
 	red        = "\033[31m"
@@ -11,3 +11,19 @@ const (
 	gray       = "\033[90m"
 	brightBlue = "\033[94m"
 )
+
+func initColors(isTTY bool) {
+	if isTTY {
+		return
+	}
+
+	reset = ""
+	bold = ""
+	red = ""
+	green = ""
+	yellow = ""
+	blue = ""
+	white = ""
+	gray = ""
+	brightBlue = ""
+}
