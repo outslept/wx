@@ -1,29 +1,34 @@
 package wx
 
-var (
-	reset      = "\033[0m"
-	bold       = "\033[1m"
-	red        = "\033[31m"
-	green      = "\033[32m"
-	yellow     = "\033[33m"
-	blue       = "\033[34m"
-	white      = "\033[37m"
-	gray       = "\033[90m"
-	brightBlue = "\033[94m"
+import (
+	"os"
+	"regexp"
 )
 
-func initColors(isTTY bool) {
-	if isTTY {
-		return
-	}
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-	reset = ""
-	bold = ""
-	red = ""
-	green = ""
-	yellow = ""
-	blue = ""
-	white = ""
-	gray = ""
-	brightBlue = ""
+type theme struct {
+	enabled                                                         bool
+	reset, bold, faint, red, green, yellow, blue, white, brightBlue string
+}
+
+func newTheme(isTTY, noColor bool) theme {
+	enabled := isTTY && os.Getenv("TERM") != "dumb"
+	if fc := os.Getenv("FORCE_COLOR"); fc != "" {
+		enabled = fc != "0"
+	}
+	if os.Getenv("NO_COLOR") != "" || noColor || !enabled {
+		return theme{}
+	}
+	return theme{true, "\033[0m", "\033[1m", "\033[2m", "\033[31m", "\033[32m", "\033[33m", "\033[34m", "\033[37m", "\033[94m"}
+}
+func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
+func sanitize(s string) string {
+	var out []rune
+	for _, r := range stripANSI(s) {
+		if r >= 0x20 && r != 0x7f && (r < 0x80 || r > 0x9f) {
+			out = append(out, r)
+		}
+	}
+	return string(out)
 }

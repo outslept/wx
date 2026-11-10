@@ -16,108 +16,57 @@ const (
 )
 
 type APIClient struct {
-	http *http.Client
+	http                   *http.Client
+	geocodeURL, weatherURL string
 }
 
 func NewAPIClient(client *http.Client) *APIClient {
 	if client == nil {
 		client = http.DefaultClient
 	}
-
-	return &APIClient{
-		http: client,
-	}
+	return &APIClient{http: client, geocodeURL: geocodeAPI, weatherURL: weatherAPI}
 }
-
 func (c *APIClient) GetLocation(cityName string) (*Location, error) {
-	params := url.Values{}
-	params.Set("name", cityName)
-	params.Set("count", "1")
-	params.Set("language", "en")
-	params.Set("format", "json")
-
-	requestURL := geocodeAPI + "?" + params.Encode()
-
-	resp, err := c.http.Get(requestURL)
-	if err != nil {
-		return nil, fmt.Errorf("geocoding request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, responseError("geocoding", resp)
-	}
-
+	q := url.Values{"name": {cityName}, "count": {"1"}, "language": {"en"}, "format": {"json"}}
 	var geo GeocodeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&geo); err != nil {
-		return nil, fmt.Errorf("decode geocoding response: %w", err)
+	if err := c.getJSON("geocoding-api.open-meteo.com", c.geocodeURL+"?"+q.Encode(), &geo); err != nil {
+		return nil, err
 	}
-
 	if len(geo.Results) == 0 {
-		return nil, fmt.Errorf("city %q not found", cityName)
+		return nil, &CLIError{Status: "error", Reason: "not_found", Message: fmt.Sprintf("Couldn't find city %q.", sanitize(cityName)), Hint: "Try another city name", Command: "wx \"San Francisco\"", Code: 1}
 	}
-
-	return &geo.Results[0], nil
+	loc := geo.Results[0]
+	loc.Name, loc.Country = sanitize(loc.Name), sanitize(loc.Country)
+	return &loc, nil
 }
-
-func (c *APIClient) GetWeather(
-	lat float64,
-	lon float64,
-	imperial bool,
-) (*Weather, error) {
-	tempUnit := "celsius"
-	windUnit := "kmh"
-
+func (c *APIClient) GetWeather(lat, lon float64, imperial bool) (*Weather, error) {
+	tempUnit, windUnit := "celsius", "kmh"
 	if imperial {
-		tempUnit = "fahrenheit"
-		windUnit = "mph"
+		tempUnit, windUnit = "fahrenheit", "mph"
 	}
-
-	params := url.Values{}
-	params.Set("latitude", fmt.Sprintf("%.5f", lat))
-	params.Set("longitude", fmt.Sprintf("%.5f", lon))
-	params.Set(
-		"current",
-		"temperature_2m,relative_humidity_2m,apparent_temperature,"+
-			"precipitation_probability,wind_speed_10m,wind_direction_10m,"+
-			"weather_code,is_day",
-	)
-	params.Set(
-		"daily",
-		"temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset",
-	)
-	params.Set("timezone", "auto")
-	params.Set("forecast_days", "1")
-	params.Set("temperature_unit", tempUnit)
-	params.Set("wind_speed_unit", windUnit)
-
-	requestURL := weatherAPI + "?" + params.Encode()
-
-	resp, err := c.http.Get(requestURL)
-	if err != nil {
-		return nil, fmt.Errorf("weather request: %w", err)
+	q := url.Values{"latitude": {fmt.Sprintf("%.5f", lat)}, "longitude": {fmt.Sprintf("%.5f", lon)}, "current": {"temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,wind_speed_10m,wind_direction_10m,weather_code,is_day"}, "daily": {"temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset"}, "timezone": {"auto"}, "forecast_days": {"1"}, "temperature_unit": {tempUnit}, "wind_speed_unit": {windUnit}}
+	var w Weather
+	if err := c.getJSON("api.open-meteo.com", c.weatherURL+"?"+q.Encode(), &w); err != nil {
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, responseError("weather api", resp)
-	}
-
-	var weather Weather
-	if err := json.NewDecoder(resp.Body).Decode(&weather); err != nil {
-		return nil, fmt.Errorf("decode weather response: %w", err)
-	}
-
-	return &weather, nil
+	return &w, nil
 }
-
-func responseError(prefix string, resp *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrBody))
-	message := strings.TrimSpace(string(body))
-
-	if message == "" {
-		return fmt.Errorf("%s: %s", prefix, resp.Status)
+func (c *APIClient) getJSON(host, reqURL string, dst any) error {
+	resp, err := c.http.Get(reqURL)
+	if err != nil {
+		return &CLIError{Status: "error", Reason: "network_error", Message: fmt.Sprintf("Couldn't reach %s.", host), Hint: "Check your connection or see help", Command: "wx --help", Code: 1}
 	}
-
-	return fmt.Errorf("%s: %s: %s", prefix, resp.Status, message)
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrBody))
+		msg := fmt.Sprintf("Failed to fetch data from %s (%s).", host, resp.Status)
+		if d := sanitize(strings.TrimSpace(string(body))); d != "" {
+			msg += " " + d
+		}
+		return &CLIError{Status: "error", Reason: "api_error", Message: msg, Code: 1}
+	}
+	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+		return &CLIError{Status: "error", Reason: "api_error", Message: fmt.Sprintf("Failed to decode response from %s.", host), Code: 1}
+	}
+	return nil
 }

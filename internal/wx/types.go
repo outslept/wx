@@ -1,18 +1,15 @@
 package wx
 
 type WeatherCode int
-
 type Location struct {
 	Name      string  `json:"name"`
 	Country   string  `json:"country"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 }
-
 type GeocodeResponse struct {
 	Results []Location `json:"results"`
 }
-
 type Weather struct {
 	Current struct {
 		Temperature              float64     `json:"temperature_2m"`
@@ -24,7 +21,6 @@ type Weather struct {
 		WeatherCode              WeatherCode `json:"weather_code"`
 		IsDay                    int         `json:"is_day"`
 	} `json:"current"`
-
 	Daily struct {
 		TempMax    []float64 `json:"temperature_2m_max"`
 		TempMin    []float64 `json:"temperature_2m_min"`
@@ -32,12 +28,25 @@ type Weather struct {
 		Sunrise    []string  `json:"sunrise"`
 		Sunset     []string  `json:"sunset"`
 	} `json:"daily"`
-
-	Timezone             string `json:"timezone"`
-	TimezoneAbbreviation string `json:"timezone_abbreviation"`
+	Timezone string `json:"timezone"`
 }
-
 type WeatherIcon struct {
 	Description string
 	ASCII       []string
 }
+type WeatherReport struct {
+	Location  Location `json:"location"`
+	Weather   Weather  `json:"weather"`
+	Condition string   `json:"condition"`
+	Units     string   `json:"units"`
+}
+type CLIError struct {
+	Status  string `json:"status"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+	Hint    string `json:"-"`
+	Command string `json:"-"`
+	Code    int    `json:"-"`
+}
+
+func (e *CLIError) Error() string { return e.Message }
