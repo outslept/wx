@@ -2,6 +2,7 @@ package wx
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"time"
 )
@@ -16,228 +17,73 @@ const (
 	windSectorCount = 8
 )
 
-func showWeather(w *Weather, loc *Location, imperial bool) {
+func showWeather(out io.Writer, t theme, w *Weather, loc *Location, imperial bool) {
 	icon := pickIcon(w.Current.WeatherCode, w.Current.IsDay == 1)
-
-	printHeader(loc, w.Timezone)
-	printIcon(icon)
-	printTemperature(w)
-	printCondition(icon.Description)
-	printMetrics(w, imperial)
-	printSunTimes(w)
-}
-
-func printHeader(loc *Location, timezone string) {
-	fmt.Println()
-
 	now := time.Now()
-
-	if timezone != "" {
-		if location, err := time.LoadLocation(timezone); err == nil {
-			now = now.In(location)
+	if w.Timezone != "" {
+		if tz, err := time.LoadLocation(w.Timezone); err == nil {
+			now = now.In(tz)
 		}
 	}
-
-	fmt.Printf(
-		"  %s%s%s, %s%s\n",
-		bold,
-		white,
-		loc.Name,
-		loc.Country,
-		reset,
-	)
-
-	fmt.Printf(
-		"  %s%s%s\n\n",
-		gray,
-		now.Format("Monday, January 2, 2006 • 15:04 MST"),
-		reset,
-	)
-}
-
-func printIcon(icon WeatherIcon) {
+	_, _ = fmt.Fprintf(out, "\n  %s%s%s, %s%s\n  %s%s%s\n\n", t.bold, t.white, loc.Name, loc.Country, t.reset, t.faint, now.Format("Monday, January 2, 2006 - 15:04 MST"), t.reset)
 	for _, line := range icon.ASCII {
-		fmt.Printf("   %s\n", line)
+		if !t.enabled {
+			line = stripANSI(line)
+		}
+		_, _ = fmt.Fprintf(out, "   %s\n", line)
 	}
-
-	fmt.Println()
-}
-
-func printTemperature(w *Weather) {
-	color := tempColor(w.Current.Temperature)
-
-	fmt.Printf(
-		"   %s%s%.0f°%s",
-		color,
-		bold,
-		w.Current.Temperature,
-		reset,
-	)
-
+	_, _ = fmt.Fprintf(out, "\n   %s%s%.0f°%s", tempColor(w.Current.Temperature, imperial, t), t.bold, w.Current.Temperature, t.reset)
 	if math.Abs(w.Current.ApparentTemp-w.Current.Temperature) >= 1.0 {
-		fmt.Printf(
-			" %s(feels like %.0f°)%s",
-			gray,
-			w.Current.ApparentTemp,
-			reset,
-		)
+		_, _ = fmt.Fprintf(out, " %s(feels like %.0f°)%s", t.faint, w.Current.ApparentTemp, t.reset)
 	}
-
-	fmt.Println()
-}
-
-func printCondition(description string) {
-	fmt.Printf(
-		"   %s%s%s\n\n",
-		gray,
-		description,
-		reset,
-	)
-}
-
-func printMetrics(w *Weather, imperial bool) {
+	_, _ = fmt.Fprintf(out, "\n   %s%s%s\n\n", t.faint, icon.Description, t.reset)
 	windUnit := "km/h"
 	if imperial {
 		windUnit = "mph"
 	}
-
-	fmt.Printf(
-		"   %sHumidity%s %d%%",
-		gray,
-		reset,
-		w.Current.Humidity,
-	)
-
-	fmt.Printf(
-		"   %sWind%s %.0f %s %s",
-		gray,
-		reset,
-		w.Current.WindSpeed,
-		windUnit,
-		windDirection(w.Current.WindDirection),
-	)
-
-	fmt.Printf(
-		"   %sRain%s %d%%",
-		gray,
-		reset,
-		w.Current.PrecipitationProbability,
-	)
-
+	_, _ = fmt.Fprintf(out, "   %sHumidity%s %d%%   %sWind%s %.0f %s %s   %sRain%s %d%%", t.faint, t.reset, w.Current.Humidity, t.faint, t.reset, w.Current.WindSpeed, windUnit, windDirection(w.Current.WindDirection), t.faint, t.reset, w.Current.PrecipitationProbability)
 	if len(w.Daily.TempMax) > 0 && len(w.Daily.TempMin) > 0 {
-		fmt.Printf(
-			"   %sHi / Lo%s %.0f° / %.0f°",
-			gray,
-			reset,
-			w.Daily.TempMax[0],
-			w.Daily.TempMin[0],
-		)
+		_, _ = fmt.Fprintf(out, "   %sHi / Lo%s %.0f° / %.0f°", t.faint, t.reset, w.Daily.TempMax[0], w.Daily.TempMin[0])
 	}
-
 	if len(w.Daily.UVIndexMax) > 0 {
-		fmt.Printf(
-			"   %sUV%s %.0f",
-			gray,
-			reset,
-			w.Daily.UVIndexMax[0],
-		)
+		_, _ = fmt.Fprintf(out, "   %sUV%s %.0f", t.faint, t.reset, w.Daily.UVIndexMax[0])
 	}
-
-	fmt.Println()
-}
-
-func printSunTimes(w *Weather) {
-	if len(w.Daily.Sunrise) == 0 || len(w.Daily.Sunset) == 0 {
-		return
-	}
-
-	location := time.Local
-
-	if w.Timezone != "" {
-		if loaded, err := time.LoadLocation(w.Timezone); err == nil {
-			location = loaded
+	_, _ = fmt.Fprintln(out)
+	if len(w.Daily.Sunrise) > 0 && len(w.Daily.Sunset) > 0 {
+		sr, err1 := time.Parse("2006-01-02T15:04", w.Daily.Sunrise[0])
+		ss, err2 := time.Parse("2006-01-02T15:04", w.Daily.Sunset[0])
+		if err1 == nil && err2 == nil {
+			_, _ = fmt.Fprintf(out, "\n   %sSunrise%s %s   %sSunset%s %s\n\n", t.faint, t.reset, sr.Format("15:04"), t.faint, t.reset, ss.Format("15:04"))
 		}
 	}
-
-	const layout = "2006-01-02T15:04"
-
-	sunrise, err := time.ParseInLocation(
-		layout,
-		w.Daily.Sunrise[0],
-		location,
-	)
-	if err != nil {
-		return
-	}
-
-	sunset, err := time.ParseInLocation(
-		layout,
-		w.Daily.Sunset[0],
-		location,
-	)
-	if err != nil {
-		return
-	}
-
-	fmt.Printf(
-		"\n   %sSunrise%s %s",
-		gray,
-		reset,
-		sunrise.Format("15:04"),
-	)
-
-	fmt.Printf(
-		"   %sSunset%s %s\n\n",
-		gray,
-		reset,
-		sunset.Format("15:04"),
-	)
 }
-
-func tempColor(temp float64) string {
+func tempColor(temp float64, imperial bool, t theme) string {
+	if imperial {
+		temp = (temp - 32) * 5 / 9
+	}
 	switch {
 	case temp >= tempHot:
-		return red
+		return t.red
 	case temp >= tempWarm:
-		return yellow
+		return t.yellow
 	case temp >= tempMild:
-		return green
+		return t.green
 	case temp >= tempFreezing:
-		return brightBlue
+		return t.brightBlue
 	default:
-		return blue
+		return t.blue
 	}
 }
-
 func windDirection(degrees int) string {
-	directions := [...]string{
-		"N",
-		"NE",
-		"E",
-		"SE",
-		"S",
-		"SW",
-		"W",
-		"NW",
-	}
-
-	normalized := ((degrees % 360) + 360) % 360
-
-	index := int(
-		(float64(normalized) + windSectorHalf) / windSectorSpan,
-	) % windSectorCount
-
-	return directions[index]
+	directions := [...]string{"N", "NE", "E", "SE", "S", "SW", "W", "NW"}
+	return directions[int((float64(((degrees%360)+360)%360)+windSectorHalf)/windSectorSpan)%windSectorCount]
 }
-
 func pickIcon(code WeatherCode, isDay bool) WeatherIcon {
 	if code == 0 && !isDay {
 		return iconMap[100]
 	}
-
 	if icon, ok := iconMap[code]; ok {
 		return icon
 	}
-
 	return unknownIcon
 }
