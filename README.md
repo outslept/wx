@@ -1,53 +1,26 @@
 # wx
 
-Minimal terminal weather client powered by Open‑Meteo. Color ASCII icons, zero configuration.
+Minimal terminal weather client powered by Open-Meteo. Color ASCII icons, zero configuration.
 
-# Usage
+## Usage
 
-```
-wx "<city>"
+```text
+wx <city> [options]
 ```
 
 Examples:
-```
+```text
 wx Moscow
-wx "San Francisco"
+wx "San Francisco" --imperial
+wx London --json
 ```
 
-If no city is provided, the app will fall back to the `WEATHER_CITY` environment variable.
+If no `<city>` is provided, `wx` reads the `WEATHER_CITY` environment variable.
 
-# Options
+## Options
 
-- `-imperial` : Display weather in Fahrenheit and mph instead of Celsius and km/h.
-
-Examples:
-```
-wx Moscow -imperial
-wx -imperial "San Francisco"
-```
-
-# Example output
-
-```
-
-  Moscow, Russia
-  Monday, September 29, 2025 • 19:44 MSK
-
-      \  /
-    _ /"".-.
-      \_(   ).
-      /(___(__)
-
-
-   7° (feels like 4°)
-   Partly cloudy
-
-   Humidity 61%   Wind 6 km/h NE   Rain 0%   Hi / Lo 10° / 4°   UV 2
-
-   Sunrise 06:28   Sunset 18:10
-
-```
-
-# Notes
-
-Data source: Open‑Meteo geocoding and forecast. No API keys. Internet connection required. Timezone is selected automatically. Colors are automatically disabled when piping output to a file or another process.
+- `-h, --help` : Show help and exit 0.
+- `--imperial` : Display weather in Fahrenheit and mph instead of Celsius and km/h.
+- `--json` : Output weather data and errors as JSON.
+- `--no-color` : Disable ANSI color output (also respects `NO_COLOR`, `FORCE_COLOR`, and `TERM=dumb`).
+- `-v, --version` : Print the CLI version.
